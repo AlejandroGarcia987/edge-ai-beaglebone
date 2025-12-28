@@ -13,6 +13,10 @@ class ADXL345:
 
     DEVICE_ID = 0xE5
 
+    LSB_TO_G = 0.004 # 4 mg/LSB at FULL_RES
+    G_TO_MS2 = 9.81
+    SCALE = LSB_TO_G * G_TO_MS2
+
     def __init__(self, bus_id=2):
         self.bus = SMBus(bus_id)
         self._check_device()
@@ -44,7 +48,8 @@ class ADXL345:
 
     def read_xyz(self):
         data = self.bus.read_i2c_block_data(self.ADDRESS, self.REG_DATAX0, 6)
-        return struct.unpack('<hhh', bytes(data))
+        x, y, z = struct.unpack('<hhh', bytes(data))
+        return (x * self.SCALE, y * self.SCALE, z * self.SCALE)
 
     def close(self):
         self.bus.close()
