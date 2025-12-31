@@ -57,37 +57,113 @@ This repository reflects that journey: **from bare hardware access to a structur
 - Debian GNU/Linux (BeagleBone AI)
 - Python 3.11
 - `smbus2` for I2C communication
-- NumPy (planned)
-- SciPy / lightweight DSP utilities (planned)
+- NumPy
+- scikit-learn (training and inference)
+- joblib (model serialization)
 - Git + GitHub for version control
 - VS Code with Remote SSH
 
 ---
 
-## Current Status
+## System Architecture and Design Decisions
 
-### Implemented
-- ADXL345 I2C driver with device validation
-- Sensor configuration (output data rate, measurement range, FIFO)
-- Stable raw XYZ acceleration readings
-- Clean Python package structure
-- Remote development using VS Code over SSH
+This project follows a simple edge AI pipeline, designed to reflect
+constraints found in embedded Linux systems.
 
-### In progress
-- Fixed-rate sampling with deterministic timing
-- Window-based buffering
-- Feature extraction pipeline
+The processing flow is:
 
-### Planned
-- Time-domain features (RMS, variance, peak-to-peak, energy)
-- Frequency-domain features (FFT-based)
-- Lightweight classifier suitable for edge inference
-- Off-device training, on-device inference
-- Basic performance and resource usage analysis
+1. Sensor acquisition (ADXL345 via I2C)
+2. Fixed-rate sampling under Linux
+3. Block-based buffering
+4. Feature extraction on-device
+5. Lightweight ML inference
+
+### Sampling strategy
+
+Instead of relying on per-sample real-time guarantees (which are difficult to
+achieve under standard Linux), the system uses:
+
+- Fixed target sampling rate
+- Block-based acquisition (time windows)
+- Timing measurement and jitter analysis
+
+This approach prioritizes statistical stability at the block level rather
+than strict real-time behavior per sample.
+
+### Feature-first approach
+
+Rather than streaming raw data to a model, the system extracts simple,
+interpretable time-domain features (RMS, mean, standard deviation, magnitude).
+
+This keeps the inference stage:
+- Lightweight
+- Explainable
+- Suitable for edge devices with limited resources
+
+
+## Edge ML Workflow
+
+A simple binary classifier (idle vs vibration) is used to validate the complete
+Edge AI pipeline.
+
+### Dataset generation
+
+- Data is collected directly on the BeagleBone AI
+- Each sample corresponds to a feature vector extracted from one block
+- Labels are assigned manually during acquisition:
+  - `0`: idle (sensor static)
+  - `1`: vibration (sensor in motion)
+
+The dataset is intentionally small and clean, as the goal is to:
+- Validate the pipeline
+- Ensure reproducibility
+- Avoid unnecessary complexity at this stage
+
+### Training and inference
+
+- Training is performed off-device (PC)
+- A lightweight model (logistic regression) is used
+- The trained model is deployed back to the BeagleBone AI
+- Inference runs fully on-device using live sensor data
+
+High classification accuracy is expected due to:
+- Clear separation between classes
+- Low-noise features
+- Controlled experimental setup
+
+This is considered a baseline, not a final model.
 
 ---
+
+## Current Status
+
+### Implemented (v1.0)
+
+- ADXL345 I2C driver with device validation
+- Sensor configuration (output data rate, measurement range, measurement mode)
+- Fixed-rate sampling under standard Linux
+- Block-based buffering strategy
+- Timing and jitter measurement and analysis
+- On-device time-domain feature extraction
+- Dataset recording directly on the BeagleBone AI
+- Off-device model training
+- On-device inference using a lightweight classifier
+- Continuous, real-time inference loop on live sensor data
+
+This version closes the full edge AI loop:
+**sensor → features → model → on-device prediction**.
+
+### Planned
+
+- Frequency-domain feature extraction (FFT-based)
+- DC component handling and filtering strategies
+- More diverse datasets and operating conditions
+- Alternative lightweight models
+- Performance and resource usage analysis
+- Further reduction of dependencies for constrained environments
 
 ## Scope and Disclaimer
 
 This is a personal learning project focused on embedded systems and Edge AI concepts.  
 The goal is not to build a production-ready solution, but to explore realistic design constraints and trade-offs found in real embedded systems.
+
